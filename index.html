@@ -65,23 +65,34 @@
 
     <section class="card">
       <h2>3) 结果</h2>
-      <div id="pretty" class="pretty hidden">
+
+      <!-- 默认显示结构化结果（非 JSON）-->
+      <div id="pretty" class="pretty hidden" aria-live="polite">
         <div class="pillbar">
           <span id="catPill" class="pill"></span>
           <span id="confPill" class="pill"></span>
           <span id="modelPill" class="pill"></span>
         </div>
+
         <h3>识别要点</h3>
         <ul id="bullets"></ul>
+
         <h3>总结</h3>
-        <p id="summary"></p>
+        <p id="summary" class="summary"></p>
+
         <h3>建议</h3>
         <ol id="advice"></ol>
+
         <h3 class="hidden" id="disclaimerTitle">提示</h3>
         <p id="disclaimer" class="disclaimer"></p>
-        <button id="toggleJson" class="secondary">查看原始 JSON</button>
-        <pre id="json" class="json hidden"></pre>
+
+        <div style="margin-top:12px;">
+          <button id="viewJsonBtn" class="secondary">查看原始 JSON</button>
+        </div>
       </div>
+
+      <!-- 原始 JSON （默认隐藏），在 Modal 中显示 -->
+      <pre id="json" class="json hidden" aria-hidden="true"></pre>
     </section>
   </main>
 
@@ -89,6 +100,23 @@
     <span>Made for Vercel · 使用官方 OpenAI API · 默认模型 gpt-4.1-mini</span>
     <a href="https://platform.openai.com/docs/api-reference" target="_blank" rel="noreferrer">API 文档</a>
   </footer>
+
+  <!-- JSON Modal -->
+  <div id="jsonModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="jsonModalTitle">
+    <div class="modal-inner">
+      <div class="modal-header">
+        <h3 id="jsonModalTitle">原始返回 JSON</h3>
+        <button id="closeJsonModal" aria-label="关闭">✕</button>
+      </div>
+      <div class="modal-body">
+        <pre id="jsonModalContent" class="json modal-json"></pre>
+      </div>
+      <div class="modal-footer">
+        <button id="downloadJson" class="secondary">下载 JSON</button>
+        <button id="closeJsonBottom" class="primary">关闭</button>
+      </div>
+    </div>
+  </div>
 
   <script src="./script.js"></script>
 </body>
