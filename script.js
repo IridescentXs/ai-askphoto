@@ -12,7 +12,7 @@ const hintTxt = $("#hint");
 const userKey = $("#userKey");
 const goBtn = $("#go");
 const statusEl = $("#status");
-const jsonEl = $("#json");
+const jsonEl = $("#json"); // hidden by default
 const pretty = $("#pretty");
 const catPill = $("#catPill");
 const confPill = $("#confPill");
@@ -21,11 +21,18 @@ const bullets = $("#bullets");
 const advice = $("#advice");
 const disclaimerTitle = $("#disclaimerTitle");
 const disclaimer = $("#disclaimer");
-const summary = $("#summary");
-const toggleJsonBtn = $("#toggleJson");
+const summaryEl = $("#summary");
+
+const viewJsonBtn = $("#viewJsonBtn");
+const jsonModal = $("#jsonModal");
+const jsonModalContent = $("#jsonModalContent");
+const closeJsonModal = $("#closeJsonModal");
+const closeJsonBottom = $("#closeJsonBottom");
+const downloadJsonBtn = $("#downloadJson");
 
 let stream = null;
 let imageDataURL = null;
+let lastRawJson = null;
 
 function setStatus(t){ statusEl.textContent = t || ""; }
 
@@ -53,7 +60,6 @@ video.addEventListener("click", ()=>{
   previewImg.src = imageDataURL;
   previewWrap.classList.remove("hidden");
   video.classList.add("hidden");
-  // stop stream tracks
   if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
   setStatus("已拍照，可开始识别。");
 });
@@ -77,8 +83,37 @@ fileInput.addEventListener("change", ()=>{
   reader.readAsDataURL(file);
 });
 
+// JSON Modal controls
+function openJsonModal(content) {
+  jsonModalContent.textContent = content;
+  jsonModal.classList.remove("hidden");
+  jsonModal.setAttribute("aria-hidden", "false");
+}
+function closeModal() {
+  jsonModal.classList.add("hidden");
+  jsonModal.setAttribute("aria-hidden", "true");
+}
+viewJsonBtn.addEventListener("click", ()=> {
+  if(lastRawJson) openJsonModal(JSON.stringify(lastRawJson, null, 2));
+});
+closeJsonModal.addEventListener("click", closeModal);
+closeJsonBottom.addEventListener("click", closeModal);
+downloadJsonBtn.addEventListener("click", ()=>{
+  if(!lastRawJson) return;
+  const blob = new Blob([JSON.stringify(lastRawJson, null, 2)], {type: "application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "result.json";
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+// close modal on escape
+document.addEventListener("keydown", (e)=>{ if(e.key === "Escape") closeModal(); });
+
 function buildUserInstruction(mode, hint){
-  return `任务：请根据图片进行识别，并给出对应场景的建议。\n模式：${mode}\n用户补充：${hint || "无"}\n输出：必须返回 UTF-8 JSON（不要额外文字）。字段：{
+  return `任务：请根据图片进行识别，并给出对应场景的建议。\\n模式：${mode}\\n用户补充：${hint || "无"}\\n输出：必须返回 UTF-8 JSON（不要额外文字）。字段：{
     "category": "auto|ingredient|pcb|plant|outfit",
     "labels": [{"name": "string", "confidence": 0~1}],
     "summary": "核心识别要点（中文，<= 120字）",
@@ -100,50 +135,78 @@ goBtn.addEventListener("click", async ()=>{
   };
   setStatus("识别中…");
   pretty.classList.add("hidden");
+  jsonEl.classList.add("hidden");
   jsonEl.textContent = "";
-  try {
-    const resp = await fetch("/api/ask", { /* ... */ });
-    const data = await resp.json();
+  lastRawJson = null;
 
-    // 渲染卡片
+  try{
+    const resp = await fetch("/api/ask", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(userKey.value ? {"x-openai-key": userKey.value.trim() } : {})
+      },
+      body: JSON.stringify(payload)
+    });
+    if(!resp.ok){
+      const msg = await resp.text();
+      throw new Error(msg || ("HTTP " + resp.status));
+    }
+    const data = await resp.json();
+    // keep raw for modal/download
+    lastRawJson = data;
+
+    // Try to get fields safely
+    const category = data.category || data?.raw?.category || "未知";
+    const labels = Array.isArray(data.labels) ? data.labels : (Array.isArray(data?.raw?.labels) ? data.raw.labels : []);
+    const summary = data.summary || data?.raw?.summary || (typeof data.raw === "string" ? data.raw.slice(0,300) : "");
+    const suggestions = Array.isArray(data.suggestions) ? data.suggestions : (Array.isArray(data?.raw?.suggestions) ? data.raw.suggestions : []);
+    const disc = data.disclaimer || data?.raw?.disclaimer || "";
+
+    // Render pretty
     pretty.classList.remove("hidden");
-    catPill.textContent = "分类: " + (data.category || "未知");
-    confPill.textContent = "最高置信度: " + ((data.labels?.[0]?.confidence ?? 0)*100).toFixed(1) + "%";
+    catPill.textContent = "分类: " + category;
+    confPill.textContent = labels.length>0 ? "最高置信度: " + (Math.max(...labels.map(l=>l.confidence||0))*100).toFixed(1) + "%" : "置信度: -";
     modelPill.textContent = "模型: " + (data._model || modelSel.value);
 
     bullets.innerHTML = "";
-    (data.labels || []).slice(0,5).forEach(it=>{
+    (labels || []).slice(0,5).forEach(it=>{
       const li = document.createElement("li");
-      li.textContent = `${it.name}（置信度 ${(it.confidence*100).toFixed(1)}%）`;
+      li.textContent = `${it.name}（置信度 ${( (it.confidence||0)*100).toFixed(1)}%）`;
       bullets.appendChild(li);
     });
+    if((labels || []).length === 0){
+      const li = document.createElement("li");
+      li.textContent = "未识别到明确标签。";
+      bullets.appendChild(li);
+    }
 
-    summary.textContent = data.summary || "";
+    summaryEl.textContent = summary || "无摘要信息。";
 
     advice.innerHTML = "";
-    (data.suggestions || []).forEach(it=>{
+    (suggestions || []).forEach(it=>{
       const li = document.createElement("li");
       li.textContent = it;
       advice.appendChild(li);
     });
+    if((suggestions || []).length === 0){
+      const li = document.createElement("li");
+      li.textContent = "无具体建议。";
+      advice.appendChild(li);
+    }
 
-    disclaimer.textContent = data.disclaimer || "";
-    disclaimerTitle.classList.toggle("hidden", !data.disclaimer);
+    disclaimer.textContent = disc || "";
+    disclaimerTitle.classList.toggle("hidden", !disc);
 
-    // JSON 存入但默认隐藏
+    // store raw JSON in hidden pre too (for progressive enhancement)
     jsonEl.textContent = JSON.stringify(data, null, 2);
     jsonEl.classList.add("hidden");
 
-    // 绑定按钮
-    toggleJsonBtn.onclick = ()=>{
-      jsonEl.classList.toggle("hidden");
-      toggleJsonBtn.textContent = jsonEl.classList.contains("hidden") ? "查看原始 JSON" : "隐藏原始 JSON";
-    };
-
     setStatus("完成 ✅");
-  } catch(e){
+  }catch(e){
     setStatus("请求失败：" + e.message);
-    jsonEl.textContent = "错误：" + e.message;
-    jsonEl.classList.remove("hidden");
+    lastRawJson = { error: e.message || String(e) };
+    // show modal with error JSON for debugging if user wants
+    openJsonModal(JSON.stringify(lastRawJson, null, 2));
   }
 });
