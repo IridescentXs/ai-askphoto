@@ -21,6 +21,8 @@ const bullets = $("#bullets");
 const advice = $("#advice");
 const disclaimerTitle = $("#disclaimerTitle");
 const disclaimer = $("#disclaimer");
+const summary = $("#summary");
+const toggleJsonBtn = $("#toggleJson");
 
 let stream = null;
 let imageDataURL = null;
@@ -99,46 +101,49 @@ goBtn.addEventListener("click", async ()=>{
   setStatus("识别中…");
   pretty.classList.add("hidden");
   jsonEl.textContent = "";
-  try{
-    const resp = await fetch("/api/ask", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(userKey.value ? {"x-openai-key": userKey.value.trim() } : {})
-      },
-      body: JSON.stringify(payload)
-    });
-    if(!resp.ok){
-      const msg = await resp.text();
-      throw new Error(msg || ("HTTP " + resp.status));
-    }
+  try {
+    const resp = await fetch("/api/ask", { /* ... */ });
     const data = await resp.json();
-    // Display raw JSON
+
+    // 渲染卡片
+    pretty.classList.remove("hidden");
+    catPill.textContent = "分类: " + (data.category || "未知");
+    confPill.textContent = "最高置信度: " + ((data.labels?.[0]?.confidence ?? 0)*100).toFixed(1) + "%";
+    modelPill.textContent = "模型: " + (data._model || modelSel.value);
+
+    bullets.innerHTML = "";
+    (data.labels || []).slice(0,5).forEach(it=>{
+      const li = document.createElement("li");
+      li.textContent = `${it.name}（置信度 ${(it.confidence*100).toFixed(1)}%）`;
+      bullets.appendChild(li);
+    });
+
+    summary.textContent = data.summary || "";
+
+    advice.innerHTML = "";
+    (data.suggestions || []).forEach(it=>{
+      const li = document.createElement("li");
+      li.textContent = it;
+      advice.appendChild(li);
+    });
+
+    disclaimer.textContent = data.disclaimer || "";
+    disclaimerTitle.classList.toggle("hidden", !data.disclaimer);
+
+    // JSON 存入但默认隐藏
     jsonEl.textContent = JSON.stringify(data, null, 2);
-    // Render pretty
-    if(data){
-      pretty.classList.remove("hidden");
-      catPill.textContent = "分类: " + (data.category || "未知");
-      confPill.textContent = "最高置信度: " + ((data.labels?.[0]?.confidence ?? 0)*100).toFixed(1) + "%";
-      modelPill.textContent = "模型: " + (data._model || modelSel.value);
-      bullets.innerHTML = "";
-      (data.labels || []).slice(0,5).forEach(it=>{
-        const li = document.createElement("li");
-        li.textContent = `${it.name}（置信度 ${(it.confidence*100).toFixed(1)}%）`;
-        bullets.appendChild(li);
-      });
-      advice.innerHTML = "";
-      (data.suggestions || []).forEach(it=>{
-        const li = document.createElement("li");
-        li.textContent = it;
-        advice.appendChild(li);
-      });
-      disclaimer.textContent = data.disclaimer || "";
-      disclaimerTitle.classList.toggle("hidden", !data.disclaimer);
-    }
+    jsonEl.classList.add("hidden");
+
+    // 绑定按钮
+    toggleJsonBtn.onclick = ()=>{
+      jsonEl.classList.toggle("hidden");
+      toggleJsonBtn.textContent = jsonEl.classList.contains("hidden") ? "查看原始 JSON" : "隐藏原始 JSON";
+    };
+
     setStatus("完成 ✅");
-  }catch(e){
+  } catch(e){
     setStatus("请求失败：" + e.message);
     jsonEl.textContent = "错误：" + e.message;
+    jsonEl.classList.remove("hidden");
   }
 });
