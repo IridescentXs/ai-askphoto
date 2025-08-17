@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>拍照问TA · 识别与建议</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <header class="container">
+    <h1>📷 拍照问TA</h1>
+    <p class="sub">拍食材 / 电路板 / 植物 / 穿搭 → 模型识别 & 给出实用建议</p>
+  </header>
+
+  <main class="container grid">
+    <section class="card">
+      <h2>1) 选择/拍摄图片</h2>
+      <div class="uploader">
+        <input id="file" type="file" accept="image/*" capture="environment" />
+        <button id="openCamera">调用摄像头</button>
+      </div>
+      <canvas id="camera" class="hidden"></canvas>
+      <video id="video" class="hidden" autoplay playsinline></video>
+      <div id="previewWrap" class="preview hidden">
+        <img id="preview" alt="预览" />
+        <button id="retake" class="secondary">重选</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>2) 配置</h2>
+      <div class="row">
+        <label>模式</label>
+        <select id="mode">
+          <option value="auto" selected>自动</option>
+          <option value="ingredient">食材识别 & 菜谱建议</option>
+          <option value="pcb">电路板/焊点排查</option>
+          <option value="plant">植物识别 & 养护</option>
+          <option value="outfit">穿搭识别 & 搭配</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>模型</label>
+        <select id="model">
+          <option value="gpt-4.1-mini" selected>gpt-4.1-mini（默认）</option>
+          <option value="gpt-4o-mini">gpt-4o-mini</option>
+          <option value="gpt-4.1">gpt-4.1</option>
+          <option value="o4-mini">o4-mini</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>补充说明（可选）</label>
+        <textarea id="hint" rows="3" placeholder="例如：想要30分钟内能做的菜；板子无法上电；叶子发黄；想要通勤风搭配..."></textarea>
+      </div>
+
+      <details class="row">
+        <summary>使用自定义 OpenAI Key（可选）</summary>
+        <input type="password" id="userKey" placeholder="以 sk- 开头的 API Key，不会被存储" />
+        <p class="tiny">若留空将使用服务端环境变量 OPENAI_API_KEY。</p>
+      </details>
+
+      <button id="go" class="primary">开始识别</button>
+      <p id="status" class="status"></p>
+    </section>
+
+    <section class="card">
+      <h2>3) 结果</h2>
+      <pre id="json" class="json"></pre>
+      <div id="pretty" class="pretty hidden">
+        <div class="pillbar">
+          <span id="catPill" class="pill"></span>
+          <span id="confPill" class="pill"></span>
+          <span id="modelPill" class="pill"></span>
+        </div>
+        <h3>识别要点</h3>
+        <ul id="bullets"></ul>
+        <h3>建议</h3>
+        <ol id="advice"></ol>
+        <h3 class="hidden" id="disclaimerTitle">提示</h3>
+        <p id="disclaimer" class="disclaimer"></p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="container foot">
+    <span>Made for Vercel · 使用官方 OpenAI API · 默认模型 gpt-4.1-mini</span>
+    <a href="https://platform.openai.com/docs/api-reference" target="_blank" rel="noreferrer">API 文档</a>
+  </footer>
+
+  <script src="./script.js"></script>
+</body>
+</html>
